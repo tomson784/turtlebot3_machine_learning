@@ -30,7 +30,7 @@ from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from respawnGoal import Respawn
 
 class Env():
-    def __init__(self, action_size):
+    def __init__(self, action_size, state_size):
         self.goal_x = 0
         self.goal_y = 0
         self.heading = 0
@@ -46,7 +46,7 @@ class Env():
         self.respawn_goal = Respawn()
 
         # Config to input space state image to CNN
-        self.grid_num = 40
+        self.grid_num = state_size
         self.range_max = 3.5
         self.resolution = 2*self.range_max / self.grid_num
         self.angle_min = 0.0
@@ -117,8 +117,8 @@ class Env():
 
     def setReward(self, state, done, action):
         yaw_reward = []
-        current_distance = state[-1]
-        heading = state[-2]
+        current_distance = state[1][1]
+        heading = state[1][0]
 
         for i in range(5):
             angle = -pi / 4 + heading + (pi / 8 * i) + pi / 2
@@ -162,7 +162,7 @@ class Env():
         state, done = self.getState(data)
         reward = self.setReward(state, done, action)
 
-        return np.asarray(state), reward, done
+        return state, reward, done
 
     def reset(self):
         rospy.wait_for_service('gazebo/reset_simulation')
@@ -185,4 +185,4 @@ class Env():
         self.goal_distance = self.getGoalDistace()
         state, done = self.getState(data)
 
-        return np.asarray(state)
+        return state

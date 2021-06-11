@@ -30,7 +30,7 @@ from std_msgs.msg import Float32MultiArray
 from src.turtlebot3_dqn.environment_stage_1_cnn import Env
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.optimizers import RMSprop
-from tensorflow.keras.layers import Dense, Dropout, Activation
+from tensorflow.keras.layers import Flatten, Dense, Dropout, Activation, Input, Model, concatenate
 
 
 EPISODES = 3000
@@ -70,16 +70,22 @@ class ReinforceAgent():
                 self.epsilon = param.get('epsilon')
 
     def buildModel(self):
-        model = Sequential()
         dropout = 0.2
 
-        model.add(Dense(64, input_shape=(self.state_size,), activation='relu', kernel_initializer='lecun_uniform'))
+        input_image = Input(shape=(self.state_size, self.state_size))
+        x1 = Flatten()(input_image)
+        x1 = Dense(64, activation='relu', kernel_initializer='lecun_uniform')(x1)
+        x1 = Dense(64, activation='relu', kernel_initializer='lecun_uniform')(x1)
+        x1 = (Dropout(dropout))(x1)
 
-        model.add(Dense(64, activation='relu', kernel_initializer='lecun_uniform'))
-        model.add(Dropout(dropout))
+        input_value = Input(shape=(2,))
+        x2 = Dense(8, activation='relu', kernel_initializer='lecun_uniform')(input_value)
 
-        model.add(Dense(self.action_size, kernel_initializer='lecun_uniform'))
-        model.add(Activation('linear'))
+        concat_layer = concatenate([x1, x2], axis=-1)
+
+        out = Dense(self.action_size, activation='linear', kernel_initializer='lecun_uniform')(concat_layer)
+
+        model = Model(inputs=[input_image, input_value], outputs=out)
         model.compile(loss='mse', optimizer=RMSprop(lr=self.learning_rate, rho=0.9, epsilon=1e-06))
         model.summary()
 
@@ -148,10 +154,10 @@ if __name__ == '__main__':
     result = Float32MultiArray()
     get_action = Float32MultiArray()
 
-    state_size = 362
+    state_size = 40
     action_size = 5
 
-    env = Env(action_size)
+    env = Env(action_size, state_size)
 
     agent = ReinforceAgent(state_size, action_size)
     scores, episodes = [], []
