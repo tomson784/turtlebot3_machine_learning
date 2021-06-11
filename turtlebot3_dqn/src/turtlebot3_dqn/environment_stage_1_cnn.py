@@ -17,6 +17,7 @@
 
 # Authors: Gilbert #
 
+from numpy.lib.function_base import angle
 import rospy
 import numpy as np
 import math
@@ -43,6 +44,17 @@ class Env():
         self.unpause_proxy = rospy.ServiceProxy('gazebo/unpause_physics', Empty)
         self.pause_proxy = rospy.ServiceProxy('gazebo/pause_physics', Empty)
         self.respawn_goal = Respawn()
+
+        # Config to input space state image to CNN
+        self.grid_num = 40
+        self.range_max = 3.5
+        self.resolution = 2*self.range_max / self.grid_num
+        self.angle_min = 0.0
+        self.angle_max = 6.28318977356
+        self.angle_increment = 0.0175019223243
+
+    def real2grid_index(self, x, y, w, h, resolution):
+        return int(np.floor(x/resolution + w/2)), int(np.floor(y/resolution + h/2))
 
     def getGoalDistace(self):
         goal_distance = round(math.hypot(self.goal_x - self.position.x, self.goal_y - self.position.y), 2)
@@ -71,6 +83,8 @@ class Env():
         heading = self.heading
         min_range = 0.13
         done = False
+        laser_angle = self.angle_min
+        obstacle_map = np.zeros([self.grid_num, self.grid_num])
 
         for i in range(len(scan.ranges)):
             if scan.ranges[i] == float('Inf'):
@@ -80,6 +94,16 @@ class Env():
             else:
                 scan_range.append(scan.ranges[i])
 
+            x_idx, y_idx = self.real2grid_index(
+                                scan.ranges[i] * np.cos(laser_angle),
+                                scan.ranges[i] * np.sin(laser_angle),
+                                self.grid_num,
+                                self.grid_num,
+                                self.resolution
+                                )
+            obstacle_map[self.grid_num - y_idx][x_idx] = 1
+            laser_angle += self.angle_increment
+
         if min_range > min(scan_range) > 0:
             done = True
 
@@ -87,7 +111,9 @@ class Env():
         if current_distance < 0.2:
             self.get_goalbox = True
 
-        return scan_range + [heading, current_distance], done
+        print(obstacle_map)
+
+        return [obstacle_map, np.array([heading, current_distance])], done
 
     def setReward(self, state, done, action):
         yaw_reward = []
