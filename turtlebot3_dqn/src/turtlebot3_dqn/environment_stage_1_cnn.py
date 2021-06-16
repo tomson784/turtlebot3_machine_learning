@@ -54,7 +54,12 @@ class Env():
         self.angle_increment = 0.0175019223243
 
     def real2grid_index(self, x, y, w, h, resolution):
-        return int(np.floor(x/resolution + w/2)), int(np.floor(y/resolution + h/2))
+        try:
+            return int(np.floor(x/resolution + w/2)), int(np.floor(y/resolution + h/2))
+        except:
+            print("error")
+            print(x, y)
+            return 0,0
 
     def getGoalDistace(self):
         goal_distance = round(math.hypot(self.goal_x - self.position.x, self.goal_y - self.position.y), 2)
@@ -95,8 +100,8 @@ class Env():
                 scan_range.append(scan.ranges[i])
 
             x_idx, y_idx = self.real2grid_index(
-                                scan.ranges[i] * np.cos(laser_angle),
-                                scan.ranges[i] * np.sin(laser_angle),
+                                scan_range[i] * np.cos(laser_angle),
+                                scan_range[i] * np.sin(laser_angle),
                                 self.grid_num,
                                 self.grid_num,
                                 self.resolution
@@ -110,8 +115,6 @@ class Env():
         current_distance = round(math.hypot(self.goal_x - self.position.x, self.goal_y - self.position.y),2)
         if current_distance < 0.2:
             self.get_goalbox = True
-
-        print(obstacle_map)
 
         return [obstacle_map, np.array([heading, current_distance])], done
 
