@@ -106,7 +106,10 @@ class Env():
                                 self.grid_num,
                                 self.resolution
                                 )
-            obstacle_map[self.grid_num - y_idx][x_idx] = 1
+            try:
+                obstacle_map[self.grid_num - y_idx][x_idx] = 1
+            except:
+                print("grid index is {}, {}".format(x_idx, y_idx))
             laser_angle += self.angle_increment
 
         if min_range > min(scan_range) > 0:
