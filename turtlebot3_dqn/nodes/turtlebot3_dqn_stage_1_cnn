@@ -27,11 +27,11 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from collections import deque
 from std_msgs.msg import Float32MultiArray
-from src.turtlebot3_dqn.environment_stage_1_cnn import Env
+from src.turtlebot3_dqn.environment_stage_1 import Env
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.optimizers import RMSprop
-from tensorflow.keras.layers import Flatten, Dense, Dropout, Activation, Conv2D
-
+from tensorflow.keras.layers import Flatten, Dense, Dropout, Activation, Conv2D, MaxPooling2D
+import matplotlib.pyplot as plt
 
 EPISODES = 3000
 
@@ -106,9 +106,10 @@ class ReinforceAgent():
         model = Sequential()
         dropout = 0.2
         model.add(Conv2D(32, (3,3), activation="relu", input_shape=(self.state_size, self.state_size, 1)))
-        model.add(Dense(64, activation='relu', kernel_initializer='lecun_uniform'))
+        model.add(MaxPooling2D(2,2))
+        model.add(Flatten())
 
-        model.add(Dense(64, activation='relu', kernel_initializer='lecun_uniform'))
+        model.add(Dense(32, activation='relu', kernel_initializer='lecun_uniform'))
         model.add(Dropout(dropout))
 
         model.add(Dense(self.action_size, kernel_initializer='lecun_uniform'))
@@ -154,6 +155,9 @@ class ReinforceAgent():
             states = self.obstacle_map(states[:-2])
             next_states = self.obstacle_map(next_states[:-2])
 
+            plt.imshow(states)
+            plt.show()
+
             q_value = self.model.predict(states.reshape(1, self.state_size, self.state_size, 1))
             self.q_value = q_value
 
@@ -165,7 +169,6 @@ class ReinforceAgent():
 
             next_q_value = self.getQvalue(rewards, next_target, dones)
 
-            # X_batch = np.append(X_batch, np.array([states.copy()]), axis=0)
             X_batch = np.r_[X_batch, states.copy()]
             Y_sample = q_value.copy()
 
@@ -173,11 +176,9 @@ class ReinforceAgent():
             Y_batch = np.append(Y_batch, np.array([Y_sample[0]]), axis=0)
 
             if dones:
-                # X_batch = np.append(X_batch, np.array([next_states.copy()]), axis=0)
                 X_batch = np.r_[X_batch, next_states.copy()]
                 Y_batch = np.append(Y_batch, np.array([[rewards] * self.action_size]), axis=0)
 
-        print("train")
         self.model.fit(X_batch.reshape(-1, self.state_size, self.state_size, 1),
                        Y_batch,
                        batch_size=self.batch_size, epochs=1, verbose=0)
