@@ -69,9 +69,40 @@ class ReinforceAgent():
                 param = json.load(outfile)
                 self.epsilon = param.get('epsilon')
 
-    def buildModel(self):
-        dropout = 0.2
+        # Config to input space state image to CNN
+        self.grid_num = state_size
+        self.range_max = 3.5
+        self.resolution = 2*self.range_max / self.grid_num
+        self.angle_min = 0.0
+        self.angle_max = 6.28318977356
+        self.angle_increment = 0.0175019223243
 
+    def real2grid_index(self, x, y, w, h, resolution):
+        return int(np.floor(x/resolution + w/2)), int(np.floor(y/resolution + h/2))
+
+    def obstacle_map(self, scan_range_list):
+        obs_map = np.zeros([self.grid_num, self.grid_num])
+        laser_angle = self.angle_min
+
+        for i in range(len(scan_range_list)):
+            x_idx, y_idx = self.real2grid_index(
+                                scan_range_list[i] * np.cos(laser_angle),
+                                scan_range_list[i] * np.sin(laser_angle),
+                                self.grid_num,
+                                self.grid_num,
+                                self.resolution
+                                )
+            if x_idx > 39:
+                x_idx = 39
+            if y_idx > 39:
+                y_idx = 39
+            obs_map[(self.grid_num - 1) - y_idx][x_idx] = 1
+            laser_angle += self.angle_increment
+        return obs_map
+
+
+
+    def buildModel(self):
         model = Sequential()
         dropout = 0.2
         model.add(Conv2D(32, (3,3), activation="relu", input_shape=(self.state_size, self.state_size, 1)))
@@ -101,8 +132,7 @@ class ReinforceAgent():
             self.q_value = np.zeros(self.action_size)
             return random.randrange(self.action_size)
         else:
-            # q_value = self.model.predict(state.reshape(1, len(state)))
-            q_value = self.model.predict(state.reshape(1, self.state_size, self.state_size))
+            q_value = self.model.predict(state.reshape(1, self.state_size, self.state_size, 1))
             self.q_value = q_value
             return np.argmax(q_value[0])
 
@@ -111,10 +141,8 @@ class ReinforceAgent():
 
     def trainModel(self, target=False):
         mini_batch = random.sample(self.memory, self.batch_size)
-        # X_batch = np.empty((0, self.state_size), dtype=np.float64)
-        X_batch = []
-        # Y_batch = np.empty((0, self.action_size), dtype=np.float64)
-        Y_batch = []
+        X_batch = np.empty((0, self.state_size, self.state_size), dtype=np.float64)
+        Y_batch = np.empty((0, self.action_size), dtype=np.float64)
 
         for i in range(self.batch_size):
             states = mini_batch[i][0]
@@ -123,35 +151,35 @@ class ReinforceAgent():
             next_states = mini_batch[i][3]
             dones = mini_batch[i][4]
 
-            q_value = self.model.predict(states[0].reshape(1, self.state_size, self.state_size, 1))
+            states = self.obstacle_map(states[:-2])
+            next_states = self.obstacle_map(next_states[:-2])
+
+            q_value = self.model.predict(states.reshape(1, self.state_size, self.state_size, 1))
             self.q_value = q_value
 
             if target:
-                next_target = self.target_model.predict(next_states[0].reshape(1, self.state_size, self.state_size, 1))
+                next_target = self.target_model.predict(next_states.reshape(1, self.state_size, self.state_size, 1))
 
             else:
-                next_target = self.model.predict(next_states[0].reshape(1, self.state_size, self.state_size, 1))
+                next_target = self.model.predict(next_states.reshape(1, self.state_size, self.state_size, 1))
 
             next_q_value = self.getQvalue(rewards, next_target, dones)
 
-            # X_batch = np.append(X_batch, np.array([states[0].copy()]), axis=0)
-            X_batch.append(states[0])
+            # X_batch = np.append(X_batch, np.array([states.copy()]), axis=0)
+            X_batch = np.r_[X_batch, states.copy()]
             Y_sample = q_value.copy()
 
             Y_sample[0][actions] = next_q_value
-            # Y_batch = np.append(Y_batch, np.array([Y_sample[0]]), axis=0)
-            Y_batch.append(Y_sample[0])
+            Y_batch = np.append(Y_batch, np.array([Y_sample[0]]), axis=0)
 
             if dones:
                 # X_batch = np.append(X_batch, np.array([next_states.copy()]), axis=0)
-                X_batch.append(np.array(next_states[0]))
-                # Y_batch = np.append(Y_batch, np.array([[rewards] * self.action_size]), axis=0)
-                Y_batch.append(np.array([rewards] * self.action_size))
-            print(Y_batch[i].shape)
+                X_batch = np.r_[X_batch, next_states.copy()]
+                Y_batch = np.append(Y_batch, np.array([[rewards] * self.action_size]), axis=0)
 
         print("train")
-        self.model.fit(np.array(X_batch).reshape(-1, self.state_size, self.state_size, 1),
-                       np.array(Y_batch),
+        self.model.fit(X_batch.reshape(-1, self.state_size, self.state_size, 1),
+                       Y_batch,
                        batch_size=self.batch_size, epochs=1, verbose=0)
 
 if __name__ == '__main__':
@@ -164,7 +192,7 @@ if __name__ == '__main__':
     state_size = 40
     action_size = 5
 
-    env = Env(action_size, state_size)
+    env = Env(action_size)
 
     agent = ReinforceAgent(state_size, action_size)
     scores, episodes = [], []
