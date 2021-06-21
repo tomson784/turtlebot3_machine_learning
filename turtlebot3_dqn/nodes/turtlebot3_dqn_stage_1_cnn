@@ -131,6 +131,7 @@ class ReinforceAgent():
             self.q_value = np.zeros(self.action_size)
             return random.randrange(self.action_size)
         else:
+            state = self.obstacle_map(state[:-2])
             q_value = self.model.predict(state.reshape(1, self.state_size, self.state_size, 1))
             self.q_value = q_value
             return np.argmax(q_value[0])
