@@ -100,12 +100,10 @@ class ReinforceAgent():
             laser_angle += self.angle_increment
         return obs_map
 
-
-
     def buildModel(self):
         model = Sequential()
         dropout = 0.2
-        model.add(Conv2D(32, (3,3), activation="relu", input_shape=(self.state_size, self.state_size, 1)))
+        model.add(Conv2D(filters=32, kernel_size=(3,3), strides=1, padding='same', activation="relu", input_shape=(self.state_size, self.state_size, 1)))
         model.add(MaxPooling2D(2,2))
         model.add(Flatten())
 
@@ -155,9 +153,6 @@ class ReinforceAgent():
             states = self.obstacle_map(states[:-2])
             next_states = self.obstacle_map(next_states[:-2])
 
-            plt.imshow(states)
-            plt.show()
-
             q_value = self.model.predict(states.reshape(1, self.state_size, self.state_size, 1))
             self.q_value = q_value
 
@@ -169,14 +164,14 @@ class ReinforceAgent():
 
             next_q_value = self.getQvalue(rewards, next_target, dones)
 
-            X_batch = np.r_[X_batch, states.copy()]
+            X_batch = np.r_[X_batch, states.reshape(1, self.state_size, self.state_size).copy()]
             Y_sample = q_value.copy()
 
             Y_sample[0][actions] = next_q_value
             Y_batch = np.append(Y_batch, np.array([Y_sample[0]]), axis=0)
 
             if dones:
-                X_batch = np.r_[X_batch, next_states.copy()]
+                X_batch = np.r_[X_batch, next_states.reshape(1, self.state_size, self.state_size).copy()]
                 Y_batch = np.append(Y_batch, np.array([[rewards] * self.action_size]), axis=0)
 
         self.model.fit(X_batch.reshape(-1, self.state_size, self.state_size, 1),
@@ -200,11 +195,18 @@ if __name__ == '__main__':
     global_step = 0
     start_time = time.time()
 
+    fig, ax = plt.subplots(1, 1)
+
     for e in range(agent.load_episode + 1, EPISODES):
         done = False
         state = env.reset()
         score = 0
         for t in range(agent.episode_step):
+
+            obs_map = agent.obstacle_map(state[:-2])
+            ax.imshow(obs_map)
+            plt.pause(0.01)
+
             action = agent.getAction(state)
 
             next_state, reward, done = env.step(action)
