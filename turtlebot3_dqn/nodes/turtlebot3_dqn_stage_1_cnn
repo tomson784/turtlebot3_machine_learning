@@ -100,6 +100,17 @@ class ReinforceAgent():
             laser_angle += self.angle_increment
         return obs_map
 
+    def simple_plot(self, scan_range_list):
+        laser_angle = self.angle_min
+        plot = np.zeros([len(scan_range_list), 2])
+        for i in range(len(scan_range_list)):
+            x = scan_range_list[i] * np.cos(laser_angle)
+            y = scan_range_list[i] * np.sin(laser_angle)
+            laser_angle += self.angle_increment
+            plot[i,0] = x
+            plot[i,1] = y
+        return plot
+
     def buildModel(self):
         model = Sequential()
         dropout = 0.2
@@ -204,8 +215,11 @@ if __name__ == '__main__':
         score = 0
         for t in range(agent.episode_step):
 
-            obs_map = agent.obstacle_map(state[:-2])
-            ax.imshow(obs_map)
+            # obs_map = agent.obstacle_map(state[:-2])
+            # ax.imshow(obs_map)
+            obs_map = agent.simple_plot(state[:-2])
+            ax.cla()
+            ax.scatter(obs_map[:,0], obs_map[:,1])
             plt.pause(0.01)
 
             action = agent.getAction(state)
