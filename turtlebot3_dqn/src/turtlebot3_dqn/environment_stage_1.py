@@ -37,6 +37,7 @@ class Env():
         self.initGoal = True
         self.get_goalbox = False
         self.position = Pose()
+        self.yaw = 0
         self.pub_cmd_vel = rospy.Publisher('cmd_vel', Twist, queue_size=5)
         self.sub_odom = rospy.Subscriber('odom', Odometry, self.getOdometry)
         self.reset_proxy = rospy.ServiceProxy('gazebo/reset_simulation', Empty)
@@ -54,6 +55,7 @@ class Env():
         orientation = odom.pose.pose.orientation
         orientation_list = [orientation.x, orientation.y, orientation.z, orientation.w]
         _, _, yaw = euler_from_quaternion(orientation_list)
+        self.yaw = yaw
 
         goal_angle = math.atan2(self.goal_y - self.position.y, self.goal_x - self.position.x)
 

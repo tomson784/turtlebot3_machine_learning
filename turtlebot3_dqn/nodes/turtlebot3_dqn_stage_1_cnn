@@ -100,12 +100,12 @@ class ReinforceAgent():
             laser_angle += self.angle_increment
         return obs_map
 
-    def simple_plot(self, scan_range_list):
+    def simple_plot(self, scan_range_list, yaw, pos):
         laser_angle = self.angle_min
         plot = np.zeros([len(scan_range_list), 2])
         for i in range(len(scan_range_list)):
-            x = scan_range_list[i] * np.cos(laser_angle)
-            y = scan_range_list[i] * np.sin(laser_angle)
+            x = scan_range_list[i] * np.cos(laser_angle + yaw) + pos.x
+            y = scan_range_list[i] * np.sin(laser_angle + yaw) + pos.y
             laser_angle += self.angle_increment
             plot[i,0] = x
             plot[i,1] = y
@@ -208,6 +208,7 @@ if __name__ == '__main__':
     start_time = time.time()
 
     fig, ax = plt.subplots(1, 1)
+    ax.set_aspect('equal')
 
     for e in range(agent.load_episode + 1, EPISODES):
         done = False
@@ -217,10 +218,14 @@ if __name__ == '__main__':
 
             # obs_map = agent.obstacle_map(state[:-2])
             # ax.imshow(obs_map)
-            obs_map = agent.simple_plot(state[:-2])
-            ax.cla()
-            ax.scatter(obs_map[:,0], obs_map[:,1])
-            plt.pause(0.01)
+            plot_map = agent.simple_plot(state[:-2], env.yaw, env.position)
+            # ax.cla()
+            x_pos = plot_map[:,0]*np.cos(np.pi/2) - plot_map[:,1]*np.sin(np.pi/2)
+            y_pos = plot_map[:,0]*np.sin(np.pi/2) + plot_map[:,1]*np.cos(np.pi/2)
+            ax.scatter(plot_map[:,0], plot_map[:,1], s=0.5, color="blue")
+            ax.scatter(env.position.x*np.cos(np.pi/2) - env.position.y*np.sin(np.pi/2),
+                       env.position.x*np.sin(np.pi/2) + env.position.y*np.cos(np.pi/2))
+            plt.pause(0.1)
 
             action = agent.getAction(state)
 
