@@ -80,23 +80,24 @@ class ReinforceAgent():
     def real2grid_index(self, x, y, w, h, resolution):
         return int(np.floor(x/resolution + w/2)), int(np.floor(y/resolution + h/2))
 
-    def obstacle_map(self, scan_range_list):
+    def obstacle_map(self, scan_range_list, yaw, pos):
         obs_map = np.zeros([self.grid_num, self.grid_num])
         laser_angle = self.angle_min
 
         for i in range(len(scan_range_list)):
             x_idx, y_idx = self.real2grid_index(
-                                scan_range_list[i] * np.cos(laser_angle),
-                                scan_range_list[i] * np.sin(laser_angle),
-                                self.grid_num,
-                                self.grid_num,
-                                self.resolution
+                                scan_range_list[i] * np.cos(laser_angle + yaw) + pos.x,
+                                scan_range_list[i] * np.sin(laser_angle + yaw) + pos.y,
+                                self.grid_num, self.grid_num, self.resolution
                                 )
-            if x_idx > 39:
-                x_idx = 39
-            if y_idx > 39:
-                y_idx = 39
+            if x_idx > (self.grid_num - 1):
+                x_idx = (self.grid_num - 1)
+            if y_idx > (self.grid_num - 1):
+                y_idx = (self.grid_num - 1)
             obs_map[(self.grid_num - 1) - y_idx][x_idx] = 1
+            robot_pos = self.real2grid_index(pos.x, pos.y,
+                                self.grid_num, self.grid_num, self.resolution)
+            obs_map[(self.grid_num - 1) - robot_pos[1]][robot_pos[0]] = 10
             laser_angle += self.angle_increment
         return obs_map
 
@@ -190,6 +191,14 @@ class ReinforceAgent():
                        Y_batch,
                        batch_size=self.batch_size, epochs=1, verbose=0)
 
+def np_queue(src, add_data):
+    dst = np.roll(src, -1, axis=0)
+    if len(dst.shape) > 1:
+        dst[-1, :] = add_data
+    else:
+        dst[-1] = add_data
+    return dst        
+
 if __name__ == '__main__':
     rospy.init_node('turtlebot3_dqn_stage_1')
     pub_result = rospy.Publisher('result', Float32MultiArray, queue_size=5)
@@ -197,7 +206,11 @@ if __name__ == '__main__':
     result = Float32MultiArray()
     get_action = Float32MultiArray()
 
-    state_size = 40
+    # show pattern
+    # grid_map, grid_pile_map, plot_map
+    show_mode = "grid_pile_map"
+
+    state_size = 80
     action_size = 5
 
     env = Env(action_size)
@@ -210,21 +223,37 @@ if __name__ == '__main__':
     fig, ax = plt.subplots(1, 1)
     ax.set_aspect('equal')
 
+    map_layer_num = 5
+    map_queue = np.zeros((map_layer_num, state_size, state_size))
+
     for e in range(agent.load_episode + 1, EPISODES):
         done = False
         state = env.reset()
         score = 0
         for t in range(agent.episode_step):
 
-            # obs_map = agent.obstacle_map(state[:-2])
-            # ax.imshow(obs_map)
-            plot_map = agent.simple_plot(state[:-2], env.yaw, env.position)
             # ax.cla()
-            x_pos = plot_map[:,0]*np.cos(np.pi/2) - plot_map[:,1]*np.sin(np.pi/2)
-            y_pos = plot_map[:,0]*np.sin(np.pi/2) + plot_map[:,1]*np.cos(np.pi/2)
-            ax.scatter(plot_map[:,0], plot_map[:,1], s=0.5, color="blue")
-            ax.scatter(env.position.x*np.cos(np.pi/2) - env.position.y*np.sin(np.pi/2),
-                       env.position.x*np.sin(np.pi/2) + env.position.y*np.cos(np.pi/2))
+            if show_mode == "grid_map":
+                grid_obs_map = agent.obstacle_map(state[:-2], env.yaw, env.position)
+                ax.imshow(grid_obs_map)
+            elif show_mode == "grid_pile_map":
+                grid_obs_map = agent.obstacle_map(state[:-2], env.yaw, env.position)
+                map_queue = np_queue(src=map_queue, add_data=grid_obs_map)
+                grid_pile_map = np.sum(map_queue, axis=0) 
+                ax.imshow(grid_pile_map)
+            elif show_mode == "plot_map":
+                plot_map = agent.simple_plot(state[:-2], env.yaw, env.position)
+                vis_rot = np.pi/2
+                x_pos = plot_map[:,0]*np.cos(vis_rot) - plot_map[:,1]*np.sin(vis_rot)
+                y_pos = plot_map[:,0]*np.sin(vis_rot) + plot_map[:,1]*np.cos(vis_rot)
+                ax.scatter(x_pos, y_pos, s=0.5, color="blue")
+                ax.scatter(env.position.x*np.cos(vis_rot) - env.position.y*np.sin(vis_rot),
+                           env.position.x*np.sin(vis_rot) + env.position.y*np.cos(vis_rot),
+                           color="red", s=1)
+            else:
+                print("Please choice the show_mode !")
+                sys.exit(-1)
+
             plt.pause(0.1)
 
             action = agent.getAction(state)

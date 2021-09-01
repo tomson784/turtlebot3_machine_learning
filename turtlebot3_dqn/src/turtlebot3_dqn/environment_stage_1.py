@@ -77,6 +77,7 @@ class Env():
         for i in range(len(scan.ranges)):
             if scan.ranges[i] == float('Inf'):
                 scan_range.append(3.5)
+                # scan_range.append(0)
             elif np.isnan(scan.ranges[i]):
                 scan_range.append(0)
             else:
