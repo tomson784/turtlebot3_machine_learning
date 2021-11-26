@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# coding : utf-8
 #################################################################################
 # Copyright 2018 ROBOTIS CO., LTD.
 #
@@ -85,9 +86,13 @@ class ReinforceAgent():
         laser_angle = self.angle_min
 
         for i in range(len(scan_range_list)):
+            x = scan_range_list[i] * np.cos(laser_angle + yaw) + pos.x
+            y = scan_range_list[i] * np.sin(laser_angle + yaw) + pos.y
+            vis_rot = np.pi/2
+            x_pos = x*np.cos(vis_rot) - y*np.sin(vis_rot)
+            y_pos = x*np.sin(vis_rot) + y*np.cos(vis_rot)
             x_idx, y_idx = self.real2grid_index(
-                                scan_range_list[i] * np.cos(laser_angle + yaw) + pos.x,
-                                scan_range_list[i] * np.sin(laser_angle + yaw) + pos.y,
+                                x_pos, y_pos,
                                 self.grid_num, self.grid_num, self.resolution
                                 )
             if x_idx > (self.grid_num - 1):
@@ -95,7 +100,9 @@ class ReinforceAgent():
             if y_idx > (self.grid_num - 1):
                 y_idx = (self.grid_num - 1)
             obs_map[(self.grid_num - 1) - y_idx][x_idx] = 1
-            robot_pos = self.real2grid_index(pos.x, pos.y,
+            robot_pos = self.real2grid_index(
+                                pos.x*np.cos(vis_rot) - pos.y*np.sin(vis_rot), 
+                                pos.x*np.sin(vis_rot) + pos.y*np.cos(vis_rot), 
                                 self.grid_num, self.grid_num, self.resolution)
             obs_map[(self.grid_num - 1) - robot_pos[1]][robot_pos[0]] = 10
             laser_angle += self.angle_increment
@@ -246,6 +253,8 @@ if __name__ == '__main__':
                 vis_rot = np.pi/2
                 x_pos = plot_map[:,0]*np.cos(vis_rot) - plot_map[:,1]*np.sin(vis_rot)
                 y_pos = plot_map[:,0]*np.sin(vis_rot) + plot_map[:,1]*np.cos(vis_rot)
+                ax.set_xlim((-3.5, 3.5))
+                ax.set_ylim((-3.5, 3.5))
                 ax.scatter(x_pos, y_pos, s=0.5, color="blue")
                 ax.scatter(env.position.x*np.cos(vis_rot) - env.position.y*np.sin(vis_rot),
                            env.position.x*np.sin(vis_rot) + env.position.y*np.cos(vis_rot),
